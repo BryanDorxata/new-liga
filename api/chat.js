@@ -1,41 +1,59 @@
 // File: api/chat.js
-
 export const config = {
   runtime: 'edge',
 };
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed.' }), { status: 405 });
+    return new Response(
+      JSON.stringify({ error: 'Method not allowed.' }),
+      { status: 405 }
+    );
+  }
+
+  const { prompt } = await req.json();
+  if (!prompt) {
+    return new Response(
+      JSON.stringify({ error: 'Missing prompt in request body.' }),
+      { status: 400 }
+    );
+  }
+
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) {
+    return new Response(
+      JSON.stringify({ error: 'Missing OpenRouter API key.' }),
+      { status: 500 }
+    );
   }
 
   try {
-    const { prompt } = await req.json();
-    if (!prompt) {
-      return new Response(JSON.stringify({ error: 'Missing prompt in request body.' }), { status: 400 });
-    }
+    const resp = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+          'HTTP-Referer': 'https://new-liga.vercel.app', // your Vercel URL
+          'X-Title': 'Liga Chatbot',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/auto',
+          messages: [
+            { role: 'system', content: 'You are a helpful multilingual assistant for Liga ng mga Barangay.' },
+            { role: 'user', content: prompt },
+          ],
+          stream: false,
+        }),
+      }
+    );
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://new-liga.vercel.app', // your domain here
-        'X-Title': 'Liga Chatbot'
-      },
-      body: JSON.stringify({
-        model: 'openchat/openchat-7b',
-        messages: [
-          { role: 'system', content: 'You are a helpful multilingual chatbot about Liga ng mga Barangay.' },
-          { role: 'user', content: prompt }
-        ],
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
+    const data = await resp.json();
+    if (!resp.ok) {
       return new Response(JSON.stringify({ error: data.error, details: data }), {
-        status: response.status,
+        status: resp.status,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -44,10 +62,11 @@ export default async function handler(req) {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Failed to connect to OpenRouter.', details: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return new Response(
+      JSON.stringify({ error: 'Failed to connect to OpenRouter.', details: err.message }),
+      { status: 500 }
+    );
   }
 }
