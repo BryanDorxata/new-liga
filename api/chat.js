@@ -1,35 +1,42 @@
-export const config = {
-  runtime: 'edge',
-};
+// File: api/chat.js
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-    });
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+  }
+
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    return res.status(400).json({ error: 'Missing prompt in request body.' });
+  }
+
+  const apiKey = process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({ error: 'Missing OpenRouter API key.' });
   }
 
   try {
-    const { message } = await req.json();
-    const apiKey = process.env.OPENAI_API_KEY;
-
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'Missing OpenAI API key' }), {
-        status: 500,
-      });
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://new-liga.vercel.app/', 
+        'X-Title': 'My Chatbot',
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'openchat/openchat-7b',
         messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: message },
+          {
+            role: 'system',
+            content: 'You are a helpful assistant.',
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
         ],
       }),
     });
@@ -37,31 +44,12 @@ export default async function handler(req) {
     const data = await response.json();
 
     if (!response.ok) {
-      return new Response(
-        JSON.stringify({
-          error: data?.error?.message || 'OpenAI API error',
-          details: data,
-        }),
-        {
-          status: response.status,
-        }
-      );
+      return res.status(500).json({ error: data.error || 'OpenRouter API error.', details: data });
     }
 
-    return new Response(
-      JSON.stringify({
-        reply: data.choices?.[0]?.message?.content || 'No reply received.',
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    const message = data.choices?.[0]?.message?.content || 'No response from model.';
+    return res.status(200).json({ response: message });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-    });
+    return res.status(500).json({ error: 'Failed to connect to OpenRouter.', details: error.message });
   }
 }
