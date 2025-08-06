@@ -35,7 +35,7 @@ export default async function handler(req) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${key}`,
-          'HTTP-Referer': 'https://new-liga.vercel.app', // your Vercel URL
+          'HTTP-Referer': 'https://new-liga.vercel.app',
           'X-Title': 'Liga Chatbot',
         },
         body: JSON.stringify({
@@ -44,6 +44,7 @@ export default async function handler(req) {
             { role: 'system', content: 'You are a helpful multilingual assistant for Liga ng mga Barangay.' },
             { role: 'user', content: prompt },
           ],
+          max_tokens: 500, // Reduced to fit free usage
           stream: false,
         }),
       }
