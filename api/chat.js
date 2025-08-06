@@ -1,38 +1,27 @@
-// File: api/chat.js
+export const config = {
+  runtime: 'edge',
+};
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed. Use POST.' });
-  }
-
-  const { prompt } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({ error: 'Missing prompt in request body.' });
-  }
-
-  const apiKey = process.env.OPENROUTER_API_KEY;
-
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Missing OpenRouter API key.' });
-  }
-
+export default async function handler(req) {
   try {
+    const { prompt } = await req.json();
+
+    if (!prompt) {
+      return new Response(JSON.stringify({ error: 'Missing prompt in request body.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://new-liga.vercel.app/', 
-        'X-Title': 'My Chatbot',
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'openchat/openchat-7b',
+        model: 'openchat/openchat-3.5-1210',
         messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant.',
-          },
           {
             role: 'user',
             content: prompt,
@@ -44,12 +33,20 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(500).json({ error: data.error || 'OpenRouter API error.', details: data });
+      return new Response(JSON.stringify({ error: data.error, details: data }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    const message = data.choices?.[0]?.message?.content || 'No response from model.';
-    return res.status(200).json({ response: message });
+    return new Response(JSON.stringify({ response: data.choices[0].message.content }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
-    return res.status(500).json({ error: 'Failed to connect to OpenRouter.', details: error.message });
+    return new Response(JSON.stringify({ error: 'Unexpected error.', details: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
