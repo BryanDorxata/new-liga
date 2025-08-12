@@ -1,43 +1,39 @@
 export default async function handler(req, res) {
-  // Allow CORS
+  // Allow CORS for Webflow
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight OPTIONS request
   if (req.method === "OPTIONS") {
-    return res.status(200).end();
+    return res.status(200).end(); // Preflight request
   }
 
-  const BASE_URL = "https://liga-chatbot-service-532186976426.us-central1.run.app";
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    // Expect full path to be passed as ?path=/apps/... or /run
-    const { path } = req.query;
+    const { path, ...bodyData } = req.body;
+
     if (!path) {
-      return res.status(400).json({ error: "Missing 'path' query parameter" });
+      return res.status(400).json({ error: "Missing 'path' in request body" });
     }
 
-    // Forward request to the Liga API
-    const targetUrl = `${BASE_URL}${path}`;
-    const ligaResponse = await fetch(targetUrl, {
-      method: req.method,
+    // Build the target URL
+    const targetUrl = `https://liga-chatbot-service-532186976426.us-central1.run.app/${path}`;
+
+    // Forward the request to Cloud Run
+    const response = await fetch(targetUrl, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: req.method !== "GET" && req.method !== "OPTIONS" ? JSON.stringify(req.body) : undefined
+      body: JSON.stringify(bodyData),
     });
 
-    const text = await ligaResponse.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text; // Not JSON
-    }
-
-    res.status(ligaResponse.status).json(data);
+    const data = await response.json();
+    return res.status(response.status).json(data);
 
   } catch (error) {
-    console.error("Proxy error:", error);
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    console.error("Error proxying chatbot request:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
